@@ -107,7 +107,7 @@ func (w *WikiClient) requestLoop() {
 			} else {
 				w.channel <- resp
 			}
-			time.Sleep(time.Second / 2)
+			time.Sleep(time.Second)
 		}
 	}()
 }
@@ -283,8 +283,15 @@ func (w *WikiClient) getTopicList(page string) []Topic {
 
 func (t Topic) formatTopic() string {
 	for i := 1; i < len(t.Messages); i += 1 {
-		colons := strings.Repeat(":", i)
-		t.Messages[i] = colons + strings.ReplaceAll(t.Messages[i], "\n", fmt.Sprintf("\n%s", colons))
+		// make an outdent after 7 colons
+		j := i % 7
+
+		if j == 0 {
+			t.Messages[i] = "{{outdent|7}}" + t.Messages[i]
+		} else {
+			colons := strings.Repeat(":", j)
+			t.Messages[i] = colons + strings.ReplaceAll(t.Messages[i], "\n", fmt.Sprintf("\n%s", colons))
+		}
 	}
 
 	return fmt.Sprintf("== %s ==\n%s", t.Title, strings.Join(t.Messages, "\n\n"))
