@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-func ReadCsv(file string) ([]string, error) {
+func readCsv(file string) ([]string, error) {
 	data, err := os.Open(file)
 	if err != nil {
 		return nil, err

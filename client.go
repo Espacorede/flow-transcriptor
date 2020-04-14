@@ -13,7 +13,7 @@ import (
 	"github.com/buger/jsonparser"
 )
 
-const wiki string = "https://wiki.teamfortress.com/w/api.php"
+const wikiURL string = "https://wiki.teamfortress.com/w/api.php"
 
 // a fazer: estudar o que raios esses métodos precisam fazer
 // https://golang.org/pkg/net/http/cookiejar/#PublicSuffixList
@@ -29,7 +29,7 @@ func (s suffixList) String() string {
 	return ""
 }
 
-type WikiClient struct {
+type wikiClient struct {
 	username string
 	password string
 	client   *http.Client
@@ -37,12 +37,12 @@ type WikiClient struct {
 	channel  chan []byte
 }
 
-type WikiPage struct {
+type wikiPage struct {
 	namespace int64
 	article   string
 }
 
-func Wiki(username string, password string) *WikiClient {
+func wiki(username string, password string) *wikiClient {
 	suffixList := suffixList{}
 	cookieOptions := cookiejar.Options{PublicSuffixList: suffixList}
 	cookieJar, _ := cookiejar.New(&cookieOptions)
@@ -51,7 +51,7 @@ func Wiki(username string, password string) *WikiClient {
 
 	parameters := fmt.Sprintf("?action=login&lgname=%s&lgpassword=%s&lgtoken=%s&format=json",
 		username, password, token)
-	req, err := http.NewRequest("POST", wiki+parameters, nil)
+	req, err := http.NewRequest("POST", wikiURL+parameters, nil)
 	if err != nil {
 		log.Panicln(err)
 	}
@@ -61,7 +61,7 @@ func Wiki(username string, password string) *WikiClient {
 		log.Panicln(err)
 	}
 
-	client := WikiClient{username, password, &webClient, token,
+	client := wikiClient{username, password, &webClient, token,
 		make(chan []byte)}
 
 	defer client.requestLoop()
@@ -72,7 +72,7 @@ func Wiki(username string, password string) *WikiClient {
 func getToken(client *http.Client, tokenType string) string {
 	parameters := fmt.Sprintf(`?action=query&meta=tokens&type=%s&format=json`,
 		tokenType)
-	req, err := http.NewRequest("POST", wiki+parameters, nil)
+	req, err := http.NewRequest("POST", wikiURL+parameters, nil)
 	if err != nil {
 		log.Panicln(err)
 	}
@@ -96,7 +96,7 @@ func getToken(client *http.Client, tokenType string) string {
 	return str
 }
 
-func (w *WikiClient) requestLoop() {
+func (w *wikiClient) requestLoop() {
 	go func() {
 		for {
 			request := <-w.channel
@@ -112,8 +112,8 @@ func (w *WikiClient) requestLoop() {
 	}()
 }
 
-func (w *WikiClient) wikiAPIRequest(parameters []byte) ([]byte, error) {
-	req, err := http.NewRequest("POST", wiki+string(parameters), nil)
+func (w *wikiClient) wikiAPIRequest(parameters []byte) ([]byte, error) {
+	req, err := http.NewRequest("POST", wikiURL+string(parameters), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -131,17 +131,17 @@ func (w *WikiClient) wikiAPIRequest(parameters []byte) ([]byte, error) {
 	return bytes, nil
 }
 
-func (w *WikiClient) doRequest(parameters string) []byte {
+func (w *wikiClient) doRequest(parameters string) []byte {
 	w.channel <- []byte(parameters)
 	return <-w.channel
 }
 
-type Topic struct {
+type topic struct {
 	Title    string
 	Messages []string
 }
 
-func (w *WikiClient) GetAllPages(namespace int) []string {
+func (w *wikiClient) getAllPages(namespace int) []string {
 	cont := ""
 
 	var flowPages []string
@@ -191,7 +191,7 @@ func (w *WikiClient) GetAllPages(namespace int) []string {
 	return flowPages
 }
 
-func (w *WikiClient) getTopicList(page string) []Topic {
+func (w *wikiClient) getTopicList(page string) []topic {
 	params := fmt.Sprintf(
 		"?action=flow&submodule=view-topiclist&page=%s&vtlsortby=newest&vtloffset-dir=fwd&format=json",
 		strings.ReplaceAll(url.PathEscape(page), "&", "%26"))
@@ -207,9 +207,9 @@ func (w *WikiClient) getTopicList(page string) []Topic {
 		log.Panicf("Error parsing json flow: %s\n", err)
 	}
 
-	pageTopics := make([]Topic, 0)
+	pageTopics := make([]topic, 0)
 
-	currentTopic := new(Topic)
+	currentTopic := new(topic)
 
 	// for each
 	callback := func(_ []byte, data []byte, _ jsonparser.ValueType, _ int) error {
@@ -223,7 +223,7 @@ func (w *WikiClient) getTopicList(page string) []Topic {
 		case "new-post", "edit-title", "lock-topic":
 			if currentTopic.Title != "" {
 				pageTopics = append(pageTopics, *currentTopic)
-				currentTopic = new(Topic)
+				currentTopic = new(topic)
 			}
 			title, err := jsonparser.GetString(data, "content", "content")
 			if err != nil {
@@ -271,7 +271,7 @@ func (w *WikiClient) getTopicList(page string) []Topic {
 	pageTopics = append(pageTopics, *currentTopic)
 	if err != nil {
 		//log.Panicf("Error parsing json topics: %s\n", err)
-		return make([]Topic, 0)
+		return make([]topic, 0)
 	}
 
 	for i, j := 0, len(pageTopics)-1; i < j; i, j = i+1, j-1 {
@@ -281,8 +281,8 @@ func (w *WikiClient) getTopicList(page string) []Topic {
 	return pageTopics
 }
 
-func (t Topic) formatTopic() string {
-	for i := 1; i < len(t.Messages); i += 1 {
+func (t topic) formatTopic() string {
+	for i := 1; i < len(t.Messages); i++ {
 		// make an outdent after 7 colons
 		j := i % 7
 
@@ -297,7 +297,7 @@ func (t Topic) formatTopic() string {
 	return fmt.Sprintf("== %s ==\n%s", t.Title, strings.Join(t.Messages, "\n\n"))
 }
 
-func (w WikiClient) FormatFlow(page string) string {
+func (w wikiClient) formatFlow(page string) string {
 	topics := w.getTopicList(page)
 
 	if topics == nil || len(topics) == 0 {

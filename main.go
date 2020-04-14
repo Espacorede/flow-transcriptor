@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	configCsv, err := ReadCsv("config.csv")
+	configCsv, err := readCsv("config.csv")
 	if err != nil {
 		log.Panicln(err)
 	}
@@ -19,17 +19,17 @@ func main() {
 	botUsername := configCsv[0]
 	botPassword := configCsv[1]
 
-	bot := Wiki(botUsername, botPassword)
+	bot := wiki(botUsername, botPassword)
 
 	namespaces := []int{1, 3, 5, 7, 9, 11, 13, 15, 829}
 
 	var flowPages []string
 
-	fmt.Printf("Login OK! %s - %s\n", bot.username, bot.token)
+	log.Printf("Login OK! %s - %s\n", bot.username, bot.token)
 
 	for _, ns := range namespaces {
-		fmt.Printf("Getting namespace %d\n", ns)
-		flowPages = append(flowPages, bot.GetAllPages(ns)...)
+		log.Printf("Getting namespace %d\n", ns)
+		flowPages = append(flowPages, bot.getAllPages(ns)...)
 	}
 
 	dirName := "transcripts"
@@ -42,11 +42,15 @@ func main() {
 		}
 	}
 
+	log.Printf("Found a total of %d flow-board pages\n", len(flowPages))
+
+	count := 0
+
 	for _, page := range flowPages {
-		format := bot.FormatFlow(page)
+		format := bot.formatFlow(page)
 
 		if format != "" {
-			fmt.Printf("Formatting page %s\n", page)
+			log.Printf("Formatting page %s\n", page)
 			filename := fmt.Sprintf("%s/%s.txt", dirName, sanitize.BaseName(page))
 
 			f, err := os.Create(filename)
@@ -56,6 +60,10 @@ func main() {
 			}
 
 			_, err = f.WriteString(format)
+
+			count++
 		}
 	}
+
+	log.Printf("We're done, after generating %d pages.", count)
 }
