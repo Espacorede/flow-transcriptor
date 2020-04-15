@@ -161,7 +161,7 @@ func (w *wikiClient) getAllPages(namespace int) []string {
 		pages, _, _, err := jsonparser.Get(request, "query", "pages")
 
 		if err != nil {
-			log.Panicf("Error getting allpages: %s\n", err)
+			log.Fatalf("Error getting allpages: %s\n", err)
 		}
 
 		callback := func(_ []byte, data []byte, _ jsonparser.ValueType, _ int) error {
@@ -191,20 +191,22 @@ func (w *wikiClient) getAllPages(namespace int) []string {
 	return flowPages
 }
 
-func (w *wikiClient) getTopicList(page string) []topic {
+func (w *wikiClient) getTopicList(page string) ([]topic, error) {
 	params := fmt.Sprintf(
 		"?action=flow&submodule=view-topiclist&page=%s&vtlsortby=newest&vtloffset-dir=fwd&format=json",
 		strings.ReplaceAll(url.PathEscape(page), "&", "%26"))
 
 	request := w.doRequest(params)
 	if len(request) == 0 {
-		panic("API error at GetTopicList")
+		return nil, fmt.Errorf("API error at getTopicList")
 	}
 
-	pages, _, _, err := jsonparser.Get(request, "flow", "view-topiclist", "result", "topiclist", "revisions")
+	revisions, _, _, err := jsonparser.Get(request, "flow", "view-topiclist",
+		"result", "topiclist", "revisions")
 
 	if err != nil {
-		log.Panicf("Error parsing json flow: %s\n", err)
+		return nil, fmt.Errorf("Error parsing json flow: %s\nRaw API response:\n%s",
+			err, string(request))
 	}
 
 	pageTopics := make([]topic, 0)
@@ -216,7 +218,7 @@ func (w *wikiClient) getTopicList(page string) []topic {
 		changeType, err := jsonparser.GetString(data, "changeType")
 
 		if err != nil {
-			return err
+			return fmt.Errorf("Error getting changeType:\n%s", err)
 		}
 
 		switch changeType {
@@ -227,19 +229,21 @@ func (w *wikiClient) getTopicList(page string) []topic {
 			}
 			title, err := jsonparser.GetString(data, "content", "content")
 			if err != nil {
-				return err
+				return fmt.Errorf("Error getting %s content:\n%s",
+					changeType, err)
 			}
 			currentTopic.Title = title
 
 		case "edit-post", "reply":
 			message, err := jsonparser.GetString(data, "content", "content")
 			if err != nil {
-				return err
+				return fmt.Errorf("Error getting %s content:\n%s",
+					changeType, err)
 			}
 
 			timestamp, err := jsonparser.GetString(data, "timestamp")
 			if err != nil {
-				return err
+				return fmt.Errorf("Error getting timestamp:\n%s", err)
 			}
 
 			format := "20060102150405"
@@ -247,38 +251,45 @@ func (w *wikiClient) getTopicList(page string) []topic {
 
 			timeParse, err := time.Parse(format, timestamp)
 			if err != nil {
-				return err
+				return fmt.Errorf("Error parsing timestamp:\n%s", err)
 			}
 
 			timeReadable := timeParse.Format(prettyFormat)
 
 			author, err := jsonparser.GetString(data, "creator", "name")
 			if err != nil {
-				return err
+				return fmt.Errorf("Error getting creator name:\n%s", err)
 			}
 
-			authorLink := fmt.Sprintf("[[User:%[1]s|%[1]s]] ([[User talk:%[1]s|talk]])", author)
+			authorLink := fmt.Sprintf("[[User:%[1]s|%[1]s]] ([[User talk:%[1]s|talk]])",
+				author)
 
-			formatMessage := fmt.Sprintf("%s — %s %s", message, authorLink, timeReadable)
+			formatMessage := fmt.Sprintf("%s %s %s", message, authorLink,
+				timeReadable)
 			currentTopic.Messages = append(currentTopic.Messages, formatMessage)
 		}
 
 		return nil
 	}
 
-	err = jsonparser.ObjectEach(pages, callback)
+	// this is a hacky way to make it ignore empty revisions
+	if len(revisions) == 2 {
+		return pageTopics, nil
+	}
+
+	err = jsonparser.ObjectEach(revisions, callback)
 
 	pageTopics = append(pageTopics, *currentTopic)
 	if err != nil {
-		//log.Panicf("Error parsing json topics: %s\n", err)
-		return make([]topic, 0)
+		return nil, fmt.Errorf("Error parsing json topics: %s\nRaw API revisions:\n%s",
+			err, string(revisions))
 	}
 
 	for i, j := 0, len(pageTopics)-1; i < j; i, j = i+1, j-1 {
 		pageTopics[i], pageTopics[j] = pageTopics[j], pageTopics[i]
 	}
 
-	return pageTopics
+	return pageTopics, nil
 }
 
 func (t topic) formatTopic() string {
@@ -290,18 +301,20 @@ func (t topic) formatTopic() string {
 			t.Messages[i] = "{{outdent|7}}" + t.Messages[i]
 		} else {
 			colons := strings.Repeat(":", j)
-			t.Messages[i] = colons + strings.ReplaceAll(t.Messages[i], "\n", fmt.Sprintf("\n%s", colons))
+			t.Messages[i] = colons + strings.ReplaceAll(t.Messages[i], "\n",
+				fmt.Sprintf("\n%s", colons))
 		}
 	}
 
-	return fmt.Sprintf("== %s ==\n%s", t.Title, strings.Join(t.Messages, "\n\n"))
+	return fmt.Sprintf("== %s ==\n%s", t.Title,
+		strings.Join(t.Messages, "\n\n"))
 }
 
 func (w wikiClient) formatFlow(page string) string {
-	topics := w.getTopicList(page)
+	topics, err := w.getTopicList(page)
 
-	if topics == nil || len(topics) == 0 {
-		return ""
+	if err != nil {
+		log.Fatalf("Error getting topics from %s:\n%s", page, err)
 	}
 
 	topicsFormatted := make([]string, len(topics))
