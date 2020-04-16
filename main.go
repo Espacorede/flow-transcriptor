@@ -4,14 +4,12 @@ import (
 	"fmt"
 	"log"
 	"os"
-
-	"github.com/kennygrant/sanitize"
 )
 
 func main() {
 	configCsv, err := readCsv("config.csv")
 	if err != nil {
-		log.Panicln(err)
+		log.Fatalln(err)
 	}
 
 	// argv := os.Args[1:]
@@ -51,7 +49,7 @@ func main() {
 
 		if format != "" {
 			log.Printf("Formatting page %s\n", page)
-			filename := fmt.Sprintf("%s/%s.txt", dirName, sanitize.BaseName(page))
+			filename := fmt.Sprintf("%s/%s.txt", dirName, safeFileName(page))
 
 			f, err := os.Create(filename)
 

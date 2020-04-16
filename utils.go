@@ -3,7 +3,10 @@ package main
 import (
 	"encoding/csv"
 	"os"
+	"regexp"
 )
+
+var fileRegex = regexp.MustCompile(`[/\\?%*:|"<>.]+`)
 
 func readCsv(file string) ([]string, error) {
 	data, err := os.Open(file)
@@ -15,4 +18,8 @@ func readCsv(file string) ([]string, error) {
 
 	values, err := csvreader.Read()
 	return values, err
+}
+
+func safeFileName(name string) string {
+	return fileRegex.ReplaceAllString(name, "-")
 }
