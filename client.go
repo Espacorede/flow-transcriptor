@@ -148,7 +148,7 @@ func (w *wikiClient) getAllPages(namespace int) []string {
 
 	for {
 		params := fmt.Sprintf(
-			"?action=query&generator=allpages&gapcontinue=%s&gaplimit=max&gapnamespace=%d&gapminsize=2&prop=info&format=json",
+			"?action=query&generator=allpages&gapcontinue=%s&gaplimit=max&gapnamespace=%d&gapminsize=1&gapmaxsize=1&prop=info&format=json",
 			cont, namespace)
 
 		request := w.doRequest(params)
@@ -161,7 +161,7 @@ func (w *wikiClient) getAllPages(namespace int) []string {
 		pages, _, _, err := jsonparser.Get(request, "query", "pages")
 
 		if err != nil {
-			log.Fatalf("Error getting allpages: %s\n", err)
+			return flowPages
 		}
 
 		callback := func(_ []byte, data []byte, _ jsonparser.ValueType, _ int) error {
@@ -317,10 +317,12 @@ func (w wikiClient) formatFlow(page string) string {
 		log.Fatalf("Error getting topics from %s:\n%s", page, err)
 	}
 
-	topicsFormatted := make([]string, len(topics))
+	topicsCount := len(topics)
+
+	topicsFormatted := make([]string, topicsCount)
 
 	for i, topic := range topics {
-		topicsFormatted[i] = topic.formatTopic()
+		topicsFormatted[topicsCount-i-1] = topic.formatTopic()
 	}
 
 	return strings.Join(topicsFormatted, "\n\n")

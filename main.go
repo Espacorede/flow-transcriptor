@@ -27,7 +27,12 @@ func main() {
 
 	for _, ns := range namespaces {
 		log.Printf("Getting namespace %d\n", ns)
-		flowPages = append(flowPages, bot.getAllPages(ns)...)
+		gap := bot.getAllPages(ns)
+		if len(gap) == 0 {
+			log.Printf("This namespace doesn't seem to have any flow pages at all :o")
+		} else {
+			flowPages = append(flowPages, gap...)
+		}
 	}
 
 	dirName := "transcripts"
@@ -45,6 +50,7 @@ func main() {
 	count := 0
 
 	for _, page := range flowPages {
+		println(page)
 		format := bot.formatFlow(page)
 
 		if format != "" {
