@@ -50,7 +50,6 @@ func main() {
 	count := 0
 
 	for _, page := range flowPages {
-		println(page)
 		format := bot.formatFlow(page)
 
 		if format != "" {
