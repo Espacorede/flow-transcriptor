@@ -148,7 +148,7 @@ func (w *wikiClient) getAllPages(namespace int) []string {
 
 	for {
 		params := fmt.Sprintf(
-			"?action=query&generator=allpages&gapcontinue=%s&gaplimit=max&gapnamespace=%d&prop=info&format=json",
+			"?action=query&generator=allpages&gapcontinue=%s&gaplimit=max&gapnamespace=%d&gapminsize=2&prop=info&format=json",
 			cont, namespace)
 
 		request := w.doRequest(params)
@@ -285,9 +285,9 @@ func (w *wikiClient) getTopicList(page string) ([]topic, error) {
 			err, string(revisions))
 	}
 
-	for i, j := 0, len(pageTopics)-1; i < j; i, j = i+1, j-1 {
-		pageTopics[i], pageTopics[j] = pageTopics[j], pageTopics[i]
-	}
+	// for i, j := 0, len(pageTopics)-1; i < j; i, j = i+1, j-1 {
+	// 	pageTopics[i], pageTopics[j] = pageTopics[j], pageTopics[i]
+	// }
 
 	return pageTopics, nil
 }
