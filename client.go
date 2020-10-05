@@ -200,18 +200,23 @@ func (w *wikiClient) getTopicList(page string) ([]topic, error) {
 	if len(request) == 0 {
 		return nil, fmt.Errorf("API error at getTopicList")
 	}
-
-	revisions, _, _, err := jsonparser.Get(request, "flow", "view-topiclist",
-		"result", "topiclist", "revisions")
-
-	if err != nil {
-		return nil, fmt.Errorf("Error parsing json flow: %s\nRaw API response:\n%s",
-			err, string(request))
-	}
-
+	
 	pageTopics := make([]topic, 0)
 
 	currentTopic := new(topic)
+
+	revisions, _, _, err := jsonparser.Get(request, "flow", "view-topiclist",
+		"result", "topiclist", "revisions")
+	if err != nil {
+		// sometimes, empty flow-board pages have no api response. whyyy? - tark
+		flowerror, _, _, err := jsonparser.Get(request, "error", "code")
+		if string(flowerror) == "invalid-page" {
+			return pageTopics, nil
+		} else {
+			return nil, fmt.Errorf("Error parsing json flow: %s\nRaw API response:\n%s",
+				err, string(request))
+		}
+	}
 
 	// for each
 	callback := func(_ []byte, data []byte, _ jsonparser.ValueType, _ int) error {
